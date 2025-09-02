@@ -1,7 +1,12 @@
+// server.js
 import express from "express";
+import path from "path";
+import { fileURLToPath } from "url";
 import cors from "cors";
 import dotenv from "dotenv";
 import pool from "./config/db.js"; 
+
+// Rutas
 import categoriesRoutes from "./routes/categoriesRoutes.js";
 import productsRoutes from "./routes/productsRoutes.js";
 import authRoutes from "./routes/authRoutes.js";
@@ -15,10 +20,13 @@ import adminProductsRoutes from "./routes/adminProductsRoutes.js";
 import publicCommentsRoutes from "./routes/publicCommentsRoutes.js";
 import adminCommentsRoutes from "./routes/adminCommentsRoutes.js";
 
-
 dotenv.config();
 
 const app = express();
+
+// Para __dirname en ESModules
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Middlewares
 app.use(cors());
@@ -43,14 +51,18 @@ app.use("/api/auth", authRoutes);
 app.use("/api/public", publicRoutes);
 app.use("/api/driver", driverRoutes);
 app.use("/api/company", companyRoutes);
-app.use("/api/auth", authAdminRoutes);
-app.use("/api/admin", adminDashboardRoutes);
+
+// ⚠️ mejor cambiar admin auth a un prefijo distinto
+app.use("/api/auth/admin", authAdminRoutes);
+
+app.use("/api/admin/dashboard", adminDashboardRoutes);
 app.use("/api/admin/categories", adminCategoriesRoutes);
 app.use("/api/admin/products", adminProductsRoutes);
 app.use("/api/public/comments", publicCommentsRoutes);
 app.use("/api/admin/comments", adminCommentsRoutes);
 
-
+// Servir carpeta uploads como pública
+app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
 
 // Iniciar servidor
 const PORT = process.env.PORT || 4000;

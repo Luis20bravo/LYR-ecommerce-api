@@ -1,7 +1,7 @@
 // controllers/adminCategoriesController.js
 import pool from "../config/db.js";
 
-// ✅ Listar todas las categorías (admin)
+// ✅ Listar todas las categorías
 export const adminListCategories = async (_req, res) => {
   try {
     const [rows] = await pool.query(
@@ -14,7 +14,7 @@ export const adminListCategories = async (_req, res) => {
   }
 };
 
-// ✅ Crear categoría (o actualizar si ya existe con mismo nombre)
+// ✅ Crear categoría (o actualizar si existe)
 export const adminCreateCategory = async (req, res) => {
   const { name, active = 1 } = req.body || {};
   if (!name?.trim()) {
@@ -32,15 +32,9 @@ export const adminCreateCategory = async (req, res) => {
     );
 
     const created = result.affectedRows === 1;
-
     if (created) {
-      // Caso: insert nuevo
-      return res.status(201).json({
-        message: "Categoría creada",
-        id: result.insertId,
-      });
+      return res.status(201).json({ message: "Categoría creada", id: result.insertId });
     } else {
-      // Caso: update por duplicado
       const [rows] = await pool.query(
         "SELECT id, name, active FROM categories WHERE name = ?",
         [name.trim()]
@@ -66,7 +60,7 @@ export const adminUpdateCategory = async (req, res) => {
 
   try {
     const [result] = await pool.query(
-      "UPDATE categories SET name = COALESCE(?, name), active = COALESCE(?, active) WHERE id = ?",
+      "UPDATE categories SET name = COALESCE(?, name), active = COALESCE(?, active), updated_at = NOW() WHERE id = ?",
       [name?.trim() ?? null, active === undefined ? null : (active ? 1 : 0), id]
     );
 
@@ -81,26 +75,55 @@ export const adminUpdateCategory = async (req, res) => {
   }
 };
 
-// ✅ Inactivar categoría (soft delete)
-export const adminDeleteCategory = async (req, res) => {
+// ✅ Cambiar estado (activar / desactivar)
+export const toggleCategory = async (req, res) => {
   const { id } = req.params;
-  if (!Number.isInteger(Number(id))) {
-    return res.status(400).json({ error: "Id inválido" });
+  const { active } = req.body;
+  if (active !== 0 && active !== 1) {
+    return res.status(400).json({ error: "Valor de 'active' inválido" });
   }
 
   try {
     const [result] = await pool.query(
-      "UPDATE categories SET active = 0 WHERE id = ?",
-      [id]
+      "UPDATE categories SET active = ?, updated_at = NOW() WHERE id = ?",
+      [active, id]
     );
-
     if (result.affectedRows === 0) {
       return res.status(404).json({ error: "Categoría no encontrada" });
     }
+    res.json({ message: `Categoría ${active ? "activada" : "desactivada"} correctamente` });
+  } catch (err) {
+    console.error("❌ toggleCategory:", err.message);
+    res.status(500).json({ error: "Error al cambiar estado de categoría" });
+  }
+};
 
+// ✅ Soft delete (inactivar categoría)
+export const adminDeleteCategory = async (req, res) => {
+  const { id } = req.params;
+  try {
+    const [result] = await pool.query("UPDATE categories SET active = 0, updated_at = NOW() WHERE id = ?", [id]);
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ error: "Categoría no encontrada" });
+    }
     res.json({ message: "Categoría inactivada" });
   } catch (e) {
     console.error("❌ adminDeleteCategory:", e);
     res.status(500).json({ error: "Error interno del servidor" });
+  }
+};
+
+// ✅ Hard delete (eliminación definitiva)
+export const hardDeleteCategory = async (req, res) => {
+  const { id } = req.params;
+  try {
+    const [result] = await pool.query("DELETE FROM categories WHERE id = ?", [id]);
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ error: "Categoría no encontrada" });
+    }
+    res.json({ message: "Categoría eliminada permanentemente" });
+  } catch (err) {
+    console.error("❌ hardDeleteCategory:", err.message);
+    res.status(500).json({ error: "Error al eliminar categoría" });
   }
 };

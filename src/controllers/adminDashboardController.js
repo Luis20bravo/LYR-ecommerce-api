@@ -1,23 +1,39 @@
+// controllers/adminDashboardController.js
 import pool from "../config/db.js";
-
-// Umbral simple de stock bajo
-const LOW_STOCK = 5;
 
 export const getAdminDashboard = async (_req, res) => {
   try {
-    const [[{ total_categories }]] = await pool.query("SELECT COUNT(*) AS total_categories FROM categories WHERE active = 1");
-    const [[{ total_products }]]   = await pool.query("SELECT COUNT(*) AS total_products FROM products WHERE active = 1");
-    const [[{ low_stock }]]        = await pool.query("SELECT COUNT(*) AS low_stock FROM products WHERE active = 1 AND stock <= ?", [LOW_STOCK]);
+    // Totales
+    const [[{ totalCategories }]] = await pool.query(
+      "SELECT COUNT(*) AS totalCategories FROM categories WHERE active = 1"
+    );
+
+    const [[{ totalProducts }]] = await pool.query(
+      "SELECT COUNT(*) AS totalProducts FROM products WHERE active = 1"
+    );
+
+    const [[{ stockTotal }]] = await pool.query(
+      "SELECT IFNULL(SUM(stock),0) AS stockTotal FROM products WHERE active = 1"
+    );
+
+    const [[{ totalComments }]] = await pool.query(
+      "SELECT COUNT(*) AS totalComments FROM comments"
+    );
+
+    // Productos con poco stock
+    const [lowStockProducts] = await pool.query(
+      "SELECT id, name, stock FROM products WHERE stock < 5 AND active = 1 ORDER BY stock ASC LIMIT 5"
+    );
 
     res.json({
-      categories: total_categories,
-      products: total_products,
-      low_stock,
-      low_stock_threshold: LOW_STOCK,
-      server_time: new Date().toISOString()
+      totalCategories,
+      totalProducts,
+      stockTotal,
+      totalComments,
+      lowStockProducts,
     });
-  } catch (e) {
-    console.error("❌ Error getAdminDashboard:", e);
+  } catch (err) {
+    console.error("❌ Error getAdminDashboard:", err.message);
     res.status(500).json({ error: "Error interno del servidor" });
   }
 };

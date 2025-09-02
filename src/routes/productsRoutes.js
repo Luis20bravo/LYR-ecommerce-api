@@ -1,8 +1,19 @@
 import { Router } from "express";
-import { getProductsByCategory, getProductSpec } from "../controllers/productsController.js";
+import { 
+  getProductsByCategory, 
+  getProductSpec, 
+  searchProducts 
+} from "../controllers/productsController.js";
 
 const router = Router();
+
+// 🔎 Búsqueda global: /api/products?search=...
+router.get("/", searchProducts);
+
+// 📂 Productos por categoría (con filtros opcionales): /api/products/:categoryId
 router.get("/:categoryId", getProductsByCategory);
-router.get("/spec/:id", getProductSpec); // GET /api/products/spec/:id
+
+// 📄 URL de especificaciones de un producto: /api/products/:id/spec
+router.get("/:id/spec", getProductSpec);
 
 export default router;

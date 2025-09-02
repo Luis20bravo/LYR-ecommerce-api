@@ -1,17 +1,29 @@
+// src/routes/adminProductsRoutes.js
 import { Router } from "express";
-import { requireAdmin } from "../middlewares/auth.js";
+import upload from "../middlewares/upload.js";
 import {
-  adminListProducts,
   adminCreateProduct,
   adminUpdateProduct,
-  adminDeleteProduct
+  adminListProducts,
+  adminDeleteProduct,
+  hardDeleteProduct
 } from "../controllers/adminProductsController.js";
 
 const router = Router();
 
-router.get("/",     requireAdmin, adminListProducts);
-router.post("/",    requireAdmin, adminCreateProduct);
-router.put("/:id",  requireAdmin, adminUpdateProduct);
-router.delete("/:id", requireAdmin, adminDeleteProduct);
+// Listar productos
+router.get("/", adminListProducts);
+
+// Crear con imagen
+router.post("/", upload.single("image"), adminCreateProduct);
+
+// Editar con imagen
+router.put("/:id", upload.single("image"), adminUpdateProduct);
+
+// Soft delete (inactivar producto)
+router.delete("/:id", adminDeleteProduct);
+
+// Hard delete (⚠ elimina de la BD)
+router.delete("/:id/hard", hardDeleteProduct);
 
 export default router;

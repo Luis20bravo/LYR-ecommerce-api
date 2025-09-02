@@ -1,9 +1,10 @@
 import { Router } from "express";
 import { getAdminDashboard } from "../controllers/adminDashboardController.js";
-import { requireAdmin } from "../middlewares/auth.js";
+import { requireAdmin } from "../middlewares/requireAdmin.js";
 
 const router = Router();
-// GET /api/admin/dashboard
-router.get("/dashboard", requireAdmin, getAdminDashboard);
+
+// Solo accesible para admins
+router.get("/", requireAdmin, getAdminDashboard);
 
 export default router;
