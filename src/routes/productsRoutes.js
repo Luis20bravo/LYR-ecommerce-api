@@ -1,19 +1,24 @@
+// src/routes/productsRoutes.js
 import { Router } from "express";
 import { 
   getProductsByCategory, 
   getProductSpec, 
-  searchProducts 
+  searchProducts,
+  getProductDetail
 } from "../controllers/productsController.js";
 
 const router = Router();
 
-// 🔎 Búsqueda global: /api/products?search=...
+// 🔎 Búsqueda global
 router.get("/", searchProducts);
 
-// 📂 Productos por categoría (con filtros opcionales): /api/products/:categoryId
-router.get("/:categoryId", getProductsByCategory);
+// 📄 URL / Detalle con spec (primero para no chocar con :categoryId)
+router.get("/spec/:id", getProductSpec);
 
-// 📄 URL de especificaciones de un producto: /api/products/:id/spec
-router.get("/:id/spec", getProductSpec);
+// 📋 Detalle completo de producto
+router.get("/detail/:id", getProductDetail);
+
+// 📂 Productos por categoría (siempre al final porque usa :categoryId)
+router.get("/:categoryId", getProductsByCategory);
 
 export default router;

@@ -19,6 +19,10 @@ import adminCategoriesRoutes from "./routes/adminCategoriesRoutes.js";
 import adminProductsRoutes from "./routes/adminProductsRoutes.js";
 import publicCommentsRoutes from "./routes/publicCommentsRoutes.js";
 import adminCommentsRoutes from "./routes/adminCommentsRoutes.js";
+import authDriverRoutes from "./routes/authDriverRoutes.js";
+
+// 🆕 Driver Orders
+import driverOrdersRoutes from "./routes/driverOrdersRoutes.js";
 
 dotenv.config();
 
@@ -51,8 +55,9 @@ app.use("/api/auth", authRoutes);
 app.use("/api/public", publicRoutes);
 app.use("/api/driver", driverRoutes);
 app.use("/api/company", companyRoutes);
+app.use("/api/auth/driver", authDriverRoutes);
 
-// ⚠️ mejor cambiar admin auth a un prefijo distinto
+// ⚠️ prefijo admin separado
 app.use("/api/auth/admin", authAdminRoutes);
 
 app.use("/api/admin/dashboard", adminDashboardRoutes);
@@ -60,6 +65,9 @@ app.use("/api/admin/categories", adminCategoriesRoutes);
 app.use("/api/admin/products", adminProductsRoutes);
 app.use("/api/public/comments", publicCommentsRoutes);
 app.use("/api/admin/comments", adminCommentsRoutes);
+
+// 🆕 Órdenes del repartidor
+app.use("/api/driver/orders", driverOrdersRoutes);
 
 // Servir carpeta uploads como pública
 app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));

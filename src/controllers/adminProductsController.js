@@ -9,7 +9,7 @@ const isUrl = (s) => typeof s === "string" && /^https?:\/\/.+/i.test(s);
 const deleteLocalFile = (filePath) => {
   if (!filePath) return;
   if (isUrl(filePath)) return; // si es URL remota, no tocar
-  const fullPath = path.join(process.cwd(), filePath); // 👈 filePath ya es /uploads/...
+  const fullPath = path.join(process.cwd(), filePath); // filePath ya es /uploads/...
   if (fs.existsSync(fullPath)) {
     fs.unlinkSync(fullPath);
     console.log(`🗑️ Imagen eliminada: ${fullPath}`);
@@ -39,26 +39,47 @@ export const adminListProducts = async (req, res) => {
        ORDER BY p.name`,
       params
     );
-    res.json(rows);
-  } catch (e) {
-    console.error("❌ adminListProducts:", e);
-    res.status(500).json({ error: "Error interno del servidor" });
+    return res.json(rows);
+  } catch (err) {
+    console.error("❌ adminListProducts:", err);
+    return res.status(500).json({ error: "Error interno del servidor" });
   }
 };
 
 // ✅ Crear producto
 export const adminCreateProduct = async (req, res) => {
-  const { category_id, name, price, stock = 0, spec_url = null, active = 1, description = null } = req.body || {};
-  const image_url = req.file ? `/uploads/products/${req.file.filename}` : req.body.image_url ?? null;
+  const {
+    category_id,
+    name,
+    price,
+    stock = 0,
+    spec_url = null,
+    active = 1,
+    description = null,
+  } = req.body || {};
+
+  // Manejo flexible de imagen
+  const image_url = req.file
+    ? `/uploads/products/${req.file.filename}`
+    : (req.body.image_url && isUrl(req.body.image_url))
+      ? req.body.image_url
+      : null;
 
   if (!category_id || !name?.trim() || price === undefined) {
-    return res.status(400).json({ error: "category_id, name y price son obligatorios" });
+    return res
+      .status(400)
+      .json({ error: "category_id, name y price son obligatorios" });
   }
-  if (Number(price) <= 0) return res.status(400).json({ error: "price debe ser > 0" });
-  if (Number(stock) < 0) return res.status(400).json({ error: "stock debe ser >= 0" });
-  if (spec_url && !isUrl(spec_url)) return res.status(400).json({ error: "spec_url debe ser URL válida" });
-  if (req.body.image_url && !isUrl(req.body.image_url)) {
-    return res.status(400).json({ error: "image_url debe ser URL válida" });
+  if (Number(price) <= 0) {
+    return res.status(400).json({ error: "price debe ser > 0" });
+  }
+  if (Number(stock) < 0) {
+    return res.status(400).json({ error: "stock debe ser >= 0" });
+  }
+  if (spec_url && spec_url !== "" && !(isUrl(spec_url) || spec_url.startsWith("/uploads/"))) {
+    return res
+      .status(400)
+      .json({ error: "spec_url debe ser URL válida (http/https o /uploads/...)" });
   }
 
   try {
@@ -66,44 +87,84 @@ export const adminCreateProduct = async (req, res) => {
       `INSERT INTO products
          (category_id, name, description, price, stock, spec_url, image_url, active, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
-      [category_id, name.trim(), description, price, stock, spec_url, image_url, active ? 1 : 0]
+      [
+        category_id,
+        name.trim(),
+        description,
+        price,
+        stock,
+        spec_url,
+        image_url,
+        active ? 1 : 0,
+      ]
     );
-    res.status(201).json({ message: "✅ Producto creado correctamente" });
-  } catch (e) {
-    console.error("❌ adminCreateProduct:", e);
-    if (e.code === "ER_DUP_ENTRY") return res.status(409).json({ error: "El producto ya existe" });
-    res.status(500).json({ error: "Error interno del servidor" });
+    return res
+      .status(201)
+      .json({ message: "✅ Producto creado correctamente" });
+  } catch (err) {
+    console.error("❌ adminCreateProduct:", err);
+    if (err?.code === "ER_DUP_ENTRY") {
+      return res.status(409).json({ error: "El producto ya existe" });
+    }
+    return res.status(500).json({ error: "Error interno del servidor" });
   }
 };
 
-// ✅ Actualizar producto (con validaciones y borrado de imagen vieja si cambia)
+// ✅ Actualizar producto
 export const adminUpdateProduct = async (req, res) => {
   const { id } = req.params;
-  const { category_id, name, description, price, stock, spec_url, active } = req.body || {};
-  const newImageUrl = req.file ? `/uploads/products/${req.file.filename}` : req.body.image_url ?? null;
+  let {
+    category_id,
+    name,
+    description,
+    price,
+    stock,
+    spec_url,
+    active,
+    image_url: bodyImageUrl,
+  } = req.body || {};
+
+  // Normalizar valores vacíos
+  if (category_id === "") category_id = null;
+  if (description === "") description = null;
+  if (price === "") price = null;
+  if (stock === "") stock = null;
+  if (spec_url === "") spec_url = null;
+  if (bodyImageUrl === "") bodyImageUrl = null;
+
+  // Imagen: archivo > URL remota > null
+  const image_url = req.file
+    ? `/uploads/products/${req.file.filename}`
+    : (bodyImageUrl && (isUrl(bodyImageUrl) || bodyImageUrl.startsWith("/uploads/")))
+      ? bodyImageUrl
+      : null;
 
   if (!Number.isInteger(Number(id))) {
     return res.status(400).json({ error: "Id inválido" });
   }
 
   // Validaciones
-  if (price !== undefined && Number(price) <= 0) {
+  if (price !== null && price !== undefined && Number(price) <= 0) {
     return res.status(400).json({ error: "price debe ser > 0" });
   }
-  if (stock !== undefined && Number(stock) < 0) {
+  if (stock !== null && stock !== undefined && Number(stock) < 0) {
     return res.status(400).json({ error: "stock debe ser >= 0" });
   }
-  if (spec_url && !isUrl(spec_url)) {
-    return res.status(400).json({ error: "spec_url debe ser URL válida" });
-  }
-  if (req.body.image_url && !isUrl(req.body.image_url)) {
-    return res.status(400).json({ error: "image_url debe ser URL válida" });
+  if (spec_url && spec_url !== "" && !(isUrl(spec_url) || spec_url.startsWith("/uploads/"))) {
+    return res
+      .status(400)
+      .json({ error: "spec_url debe ser URL válida (http/https o /uploads/...)" });
   }
 
   try {
-    // Obtener imagen actual
-    const [[current]] = await pool.query("SELECT image_url FROM products WHERE id = ?", [id]);
-    if (!current) return res.status(404).json({ error: "Producto no encontrado" });
+    // Imagen actual
+    const [[current]] = await pool.query(
+      "SELECT image_url FROM products WHERE id = ?",
+      [id]
+    );
+    if (!current) {
+      return res.status(404).json({ error: "Producto no encontrado" });
+    }
 
     // Actualizar
     const [r] = await pool.query(
@@ -119,69 +180,82 @@ export const adminUpdateProduct = async (req, res) => {
          updated_at  = NOW()
        WHERE id = ?`,
       [
-        category_id ?? null,
+        category_id,
         name?.trim() ?? null,
-        description ?? null,
-        price ?? null,
-        stock ?? null,
-        spec_url ?? null,
-        newImageUrl ?? null,
-        active === undefined ? null : (active ? 1 : 0),
+        description,
+        price,
+        stock,
+        spec_url,
+        image_url,
+        active === undefined ? null : active ? 1 : 0,
         id,
       ]
     );
 
-    if (r.affectedRows === 0) return res.status(404).json({ error: "Producto no encontrado" });
+    if (r.affectedRows === 0) {
+      return res.status(404).json({ error: "Producto no encontrado" });
+    }
 
-    // Si la imagen fue reemplazada, eliminar la vieja local
-    if (newImageUrl && newImageUrl !== current.image_url) {
+    // Si hay nueva imagen, borrar la anterior
+    if (req.file && current.image_url && current.image_url !== image_url) {
       deleteLocalFile(current.image_url);
     }
 
-    res.json({ message: "✅ Producto actualizado correctamente" });
-  } catch (e) {
-    console.error("❌ adminUpdateProduct:", e);
-    res.status(500).json({ error: "Error al actualizar producto" });
+    return res.json({ message: "✅ Producto actualizado correctamente" });
+  } catch (err) {
+    console.error("❌ adminUpdateProduct:", err);
+    return res.status(500).json({ error: "Error al actualizar producto" });
   }
 };
 
-// ✅ Soft delete (inactivar producto)
+// ✅ Soft delete
 export const adminDeleteProduct = async (req, res) => {
   const { id } = req.params;
-  if (!Number.isInteger(Number(id))) return res.status(400).json({ error: "Id inválido" });
+  if (!Number.isInteger(Number(id))) {
+    return res.status(400).json({ error: "Id inválido" });
+  }
 
   try {
-    const [r] = await pool.query("UPDATE products SET active = 0, updated_at = NOW() WHERE id = ?", [id]);
-    if (r.affectedRows === 0) return res.status(404).json({ error: "Producto no encontrado" });
-    res.json({ message: "🛑 Producto inactivado" });
-  } catch (e) {
-    console.error("❌ adminDeleteProduct:", e);
-    res.status(500).json({ error: "Error interno del servidor" });
+    const [r] = await pool.query(
+      "UPDATE products SET active = 0, updated_at = NOW() WHERE id = ?",
+      [id]
+    );
+    if (r.affectedRows === 0) {
+      return res.status(404).json({ error: "Producto no encontrado" });
+    }
+    return res.json({ message: "🛑 Producto inactivado" });
+  } catch (err) {
+    console.error("❌ adminDeleteProduct:", err);
+    return res.status(500).json({ error: "Error interno del servidor" });
   }
 };
 
-// ✅ Hard delete (eliminación definitiva con borrado de imagen local)
+// ✅ Hard delete
 export const hardDeleteProduct = async (req, res) => {
   const { id } = req.params;
-  if (!Number.isInteger(Number(id))) return res.status(400).json({ error: "Id inválido" });
+  if (!Number.isInteger(Number(id))) {
+    return res.status(400).json({ error: "Id inválido" });
+  }
 
   try {
-    // Obtener imagen antes de eliminar
-    const [[current]] = await pool.query("SELECT image_url FROM products WHERE id = ?", [id]);
-    if (!current) return res.status(404).json({ error: "Producto no encontrado" });
+    const [[current]] = await pool.query(
+      "SELECT image_url FROM products WHERE id = ?",
+      [id]
+    );
+    if (!current) {
+      return res.status(404).json({ error: "Producto no encontrado" });
+    }
 
     const [r] = await pool.query("DELETE FROM products WHERE id = ?", [id]);
-    if (r.affectedRows === 0) return res.status(404).json({ error: "Producto no encontrado" });
+    if (r.affectedRows === 0) {
+      return res.status(404).json({ error: "Producto no encontrado" });
+    }
 
-    // Eliminar archivo local si existe
     deleteLocalFile(current.image_url);
 
-    res.json({ message: "🗑️ Producto eliminado permanentemente" });
+    return res.json({ message: "🗑️ Producto eliminado permanentemente" });
   } catch (err) {
-    console.error("❌ hardDeleteProduct:", err.message);
-    res.status(500).json({ error: "Error al eliminar producto" });
+    console.error("❌ hardDeleteProduct:", err);
+    return res.status(500).json({ error: "Error al eliminar producto" });
   }
 };
-
-
-

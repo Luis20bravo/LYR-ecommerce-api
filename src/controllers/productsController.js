@@ -1,3 +1,4 @@
+// src/controllers/productsController.js
 import pool from "../config/db.js";
 
 /**
@@ -49,8 +50,8 @@ export const getProductsByCategory = async (req, res) => {
 };
 
 /**
- * GET /api/product/:id/spec
- * Obtiene la URL de especificaciones de un producto activo
+ * GET /api/products/spec/:id
+ * Obtiene detalle del producto (incluye spec_url)
  */
 export const getProductSpec = async (req, res) => {
   const { id } = req.params;
@@ -61,25 +62,28 @@ export const getProductSpec = async (req, res) => {
   }
 
   try {
-    const [rows] = await pool.query(
-      "SELECT id, name, spec_url FROM products WHERE id = ? AND active = 1 LIMIT 1",
+    const [[row]] = await pool.query(
+      `SELECT 
+         p.id, p.name, p.description, p.price, p.stock, 
+         p.image_url, p.spec_url, p.active,
+         c.id AS category_id, c.name AS category
+       FROM products p
+       JOIN categories c ON c.id = p.category_id
+       WHERE p.id = ? AND p.active = 1`,
       [idNum]
     );
 
-    if (!rows.length) return res.status(404).json({ error: "Producto no encontrado" });
+    if (!row) return res.status(404).json({ error: "Producto no encontrado" });
 
-    const { spec_url } = rows[0];
-    if (!spec_url) return res.status(204).send();
-
-    res.json({ spec_url });
-  } catch (error) {
-    console.error("❌ Error getProductSpec:", error.message);
+    res.json(row);
+  } catch (err) {
+    console.error("❌ getProductSpec:", err);
     res.status(500).json({ error: "Error interno del servidor" });
   }
 };
 
 /**
- * GET /api/products/search?search=...
+ * GET /api/products?search=...
  * Búsqueda global en productos activos
  */
 export const searchProducts = async (req, res) => {
@@ -106,5 +110,37 @@ export const searchProducts = async (req, res) => {
   } catch (err) {
     console.error("❌ Error searchProducts:", err);
     res.status(500).json({ error: "Error interno del servidor" });
+  }
+};
+
+/**
+ * GET /api/products/detail/:id
+ * Detalle completo de producto
+ */
+export const getProductDetail = async (req, res) => {
+  const { id } = req.params;
+  const idNum = Number(id);
+
+  if (!Number.isInteger(idNum) || idNum <= 0) {
+    return res.status(400).json({ error: "Id inválido" });
+  }
+
+  try {
+    const [[row]] = await pool.query(
+      `SELECT p.id, p.name, p.description, p.price, p.stock, 
+              p.image_url, p.spec_url, p.active,
+              c.id AS category_id, c.name AS category
+       FROM products p
+       JOIN categories c ON c.id = p.category_id
+       WHERE p.id = ? AND p.active = 1`,
+      [idNum]
+    );
+
+    if (!row) return res.status(404).json({ error: "Producto no encontrado" });
+
+    res.json(row);
+  } catch (err) {
+    console.error("❌ getProductDetail:", err);
+    res.status(500).json({ error: "Error al obtener detalle del producto" });
   }
 };

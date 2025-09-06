@@ -1,6 +1,9 @@
 import { Router } from "express";
-import { createComment } from "../controllers/commentsController.js";
+import { createComment, listCommentsByProduct } from "../controllers/publicCommentsController.js";
 
 const router = Router();
-router.post("/", createComment); // POST /api/public/comments
+
+router.post("/", createComment);
+router.get("/", listCommentsByProduct);
+
 export default router;
